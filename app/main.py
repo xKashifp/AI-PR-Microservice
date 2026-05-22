@@ -54,8 +54,9 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Failed to preload models: {e}")
         
-    logger.info("Starting scheduler")
-    start_scheduler()
+    if os.environ.get("TESTING") != "True":
+        logger.info("Starting scheduler")
+        start_scheduler()
     yield
     # Shutdown
     logger.info("Saving FAISS index on shutdown")

@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.setdefault("SQLITE_DB_PATH", "./data/test_pr_intelligence.db")
 os.environ.setdefault("FAISS_INDEX_DIR", "./data/test_faiss_index")
 os.environ.setdefault("MODEL_DIR", "./ml/models")
+os.environ["TESTING"] = "True"
 
 from fastapi.testclient import TestClient
 from app.main import app
