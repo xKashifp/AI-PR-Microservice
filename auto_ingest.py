@@ -9,7 +9,7 @@ import httpx
 # Default RSS feeds to scrape
 DEFAULT_FEEDS = {
     "TechCrunch": "https://techcrunch.com/feed/",
-    "CoinDesk": "https://www.coindesk.com/arc/outboundfeed/rss",
+    "CoinDesk": "https://www.coindesk.com/arc/outboundfeed/rss/",
     "CoinTelegraph": "https://cointelegraph.com/rss"
 }
 

@@ -11,9 +11,14 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Set Hugging Face cache directory outside /app and configure permissions
+ENV HF_HOME=/huggingface_cache
+RUN mkdir -p /huggingface_cache && chmod -R 777 /huggingface_cache
+
 # Pre-download models at build time (bakes into image, no cold start)
 RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
 RUN python -c "from transformers import pipeline; pipeline('text-classification', model='philschmid/tiny-bert-sst2-distilled')"
+RUN chmod -R 777 /huggingface_cache
 
 COPY . .
 
@@ -22,6 +27,9 @@ RUN mkdir -p data/faiss_index ml/models
 
 # Train classifier at build time
 RUN python -m ml.train_classifier
+
+# Open permissions on /app for runtime DB/index writing
+RUN chmod -R 777 /app
 
 EXPOSE 8000
 
