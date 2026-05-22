@@ -9,7 +9,7 @@ import httpx
 # Default RSS feeds to scrape
 DEFAULT_FEEDS = {
     "TechCrunch": "https://techcrunch.com/feed/",
-    "CoinDesk": "https://www.coindesk.com/arc/outboundfeed/rss/",
+    "CoinDesk": "https://www.coindesk.com/arc/outboundfeed/rss",
     "CoinTelegraph": "https://cointelegraph.com/rss"
 }
 
@@ -27,7 +27,7 @@ def parse_rss_feed(source_name: str, feed_url: str) -> list:
     """Fetch and parse RSS feed items."""
     print(f"Fetching {source_name} feed...")
     try:
-        resp = httpx.get(feed_url, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
+        resp = httpx.get(feed_url, timeout=15, headers={"User-Agent": "Mozilla/5.0"}, follow_redirects=True)
         resp.raise_for_status()
     except Exception as e:
         print(f"Failed to fetch {source_name}: {e}")
