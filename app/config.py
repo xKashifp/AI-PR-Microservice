@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
 
     # Sentiment model
-    SENTIMENT_MODEL: str = "distilbert-base-uncased-finetuned-sst-2-english"
+    SENTIMENT_MODEL: str = "philschmid/tiny-bert-sst2-distilled"
 
     model_config = ConfigDict(env_file=".env")
 

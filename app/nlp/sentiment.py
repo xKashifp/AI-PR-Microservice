@@ -14,7 +14,14 @@ def get_sentiment_pipeline():
 def analyze(text: str) -> dict:
     pipe = get_sentiment_pipeline()
     result = pipe(text[:512])[0]
+    label = result["label"].lower()
+    if "label_0" in label or "negative" in label:
+        clean_label = "negative"
+    elif "label_1" in label or "positive" in label:
+        clean_label = "positive"
+    else:
+        clean_label = label  # fallback
     return {
-        "label": result["label"].lower(),   # "positive" / "negative"
+        "label": clean_label,
         "score": round(result["score"], 4)
     }
