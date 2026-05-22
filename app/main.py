@@ -1,4 +1,21 @@
 import os
+
+# PyTorch thread and memory limit optimizations to prevent OOM
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+os.environ["PYTORCH_MALLOC_CONF"] = "max_split_size_mb:32"
+
+try:
+    import torch
+    torch.set_num_threads(1)
+    torch.set_num_interop_threads(1)
+    torch.set_grad_enabled(False)
+except ImportError:
+    pass
+
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
@@ -27,14 +44,16 @@ async def lifespan(app: FastAPI):
     logger.info("Loading FAISS index")
     get_store()
     
-    logger.info("Verifying NLP engines")
+    logger.info("Pre-loading NLP models to prevent runtime OOM")
     try:
         from app.nlp.embedder import Embedder
-        # Dry run embedder initialization and check
+        from app.nlp.sentiment import get_sentiment_pipeline
+        # Force loading of models into memory
         Embedder.get()
-        logger.info("NLP engines verified successfully")
+        get_sentiment_pipeline()
+        logger.info("NLP models preloaded successfully")
     except Exception as e:
-        logger.error(f"Failed to verify NLP engines: {e}")
+        logger.error(f"Failed to preload models: {e}")
         
     if os.environ.get("TESTING") != "True":
         logger.info("Starting scheduler")

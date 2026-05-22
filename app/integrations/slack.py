@@ -51,6 +51,7 @@ async def post_digest(mentions: list):
                     f"*{i}. {m['title']}*\n"
                     f"{m.get('summary', 'No summary available.')}\n"
                     f"Source: {m.get('source', 'Unknown')} | "
+                    f"Published: {m.get('published_at', 'N/A')} | "
                     f"Reach: {m.get('reach', 0):,} | "
                     f"Sentiment: {m.get('sentiment', 'N/A')}\n"
                     + (f"Tickers: `{tickers}` " if tickers else "")

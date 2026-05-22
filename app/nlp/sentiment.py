@@ -1,43 +1,30 @@
-import re
+from transformers import pipeline
+import torch
+import gc
 from functools import lru_cache
-
-# Pure Python lexicon-based sentiment analysis to avoid loading heavy transformer weights
-POSITIVE_WORDS = {
-    "secure", "secured", "raise", "raised", "raising", "partner", "partnership",
-    "collaboration", "success", "successful", "announces", "announcement", "launch",
-    "launches", "launched", "innovative", "growth", "expansion", "expand",
-    "funding", "investment", "invest", "support", "gain", "profit", "bullish"
-}
-
-NEGATIVE_WORDS = {
-    "hack", "hacked", "breach", "leak", "leaked", "backlash", "investigation",
-    "investigate", "probe", "crisis", "fail", "failure", "failed", "drop", "dropped",
-    "loss", "lost", "regulation", "regulatory", "lawsuit", "sue", "sued", "exploit",
-    "exploited", "vulnerability", "risk", "risky", "bearish"
-}
+from app.config import settings
 
 @lru_cache(maxsize=1)
 def get_sentiment_pipeline():
-    # Return a mock to maintain compatibility with startup preloader
-    return None
+    pipe = pipeline(
+        "text-classification",
+        model=settings.SENTIMENT_MODEL,
+        device=-1
+    )
+    try:
+        pipe.model = torch.quantization.quantize_dynamic(
+            pipe.model, {torch.nn.Linear}, dtype=torch.qint8
+        )
+    except Exception:
+        pass
+    gc.collect()
+    return pipe
 
 def analyze(text: str) -> dict:
-    words = re.findall(r"\b\w+\b", text.lower())
-    
-    pos_count = sum(1 for w in words if w in POSITIVE_WORDS)
-    neg_count = sum(1 for w in words if w in NEGATIVE_WORDS)
-    
-    if pos_count > neg_count:
-        label = "positive"
-        score = min(1.0, 0.5 + 0.1 * (pos_count - neg_count))
-    elif neg_count > pos_count:
-        label = "negative"
-        score = min(1.0, 0.5 + 0.1 * (neg_count - pos_count))
-    else:
-        label = "neutral"
-        score = 0.5
-        
+    pipe = get_sentiment_pipeline()
+    res = pipe(text[:512])[0]
+    label = res["label"].lower()
     return {
         "label": label,
-        "score": round(score, 4)
+        "score": round(res["score"], 4)
     }
