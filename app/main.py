@@ -1,3 +1,20 @@
+import os
+
+# PyTorch/OMP thread and memory optimization
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+
+try:
+    import torch
+    torch.set_num_threads(1)
+    torch.set_num_interop_threads(1)
+    torch.set_grad_enabled(False)
+except ImportError:
+    pass
+
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
@@ -13,7 +30,7 @@ from app.jobs.scheduler import start_scheduler
 from app.api import ingest, search, health, digest
 from app.utils.logger import get_logger
 from app.utils.metrics import MetricsMiddleware
-import os
+
 
 logger = get_logger()
 limiter = Limiter(key_func=get_remote_address)
