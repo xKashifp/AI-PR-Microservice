@@ -47,4 +47,20 @@ def db_conn():
 
 def init_db():
     with db_conn() as conn:
+        # Check if table exists
+        table_exists = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='mentions'"
+        ).fetchone()
+        
+        if table_exists:
+            # Check existing columns
+            cursor = conn.execute("PRAGMA table_info(mentions)")
+            columns = [row["name"] for row in cursor.fetchall()]
+            
+            # If any required column is missing, recreate table
+            required_cols = ["id", "title", "text", "source", "published_at", "reach", "sentiment", "sentiment_score", "topics", "summary", "web3_signals"]
+            missing = [c for c in required_cols if c not in columns]
+            if missing:
+                conn.execute("DROP TABLE mentions")
+        
         conn.executescript(SCHEMA)
