@@ -22,6 +22,12 @@ CREATE TABLE IF NOT EXISTS mentions (
 CREATE INDEX IF NOT EXISTS idx_sentiment ON mentions(sentiment);
 CREATE INDEX IF NOT EXISTS idx_published ON mentions(published_at);
 CREATE INDEX IF NOT EXISTS idx_reach ON mentions(reach);
+
+CREATE TABLE IF NOT EXISTS slack_subscribers (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    webhook_url   TEXT UNIQUE NOT NULL,
+    created_at    TEXT DEFAULT (datetime('now'))
+);
 """
 
 def get_conn():

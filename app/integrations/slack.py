@@ -2,10 +2,25 @@ import httpx
 from app.config import settings
 
 async def post_digest(mentions: list):
-    if not settings.SLACK_WEBHOOK_URL or "..." in settings.SLACK_WEBHOOK_URL:
+    # Fetch all registered webhooks from SQLite
+    webhooks = []
+    try:
+        from app.models.db import db_conn
+        with db_conn() as conn:
+            rows = conn.execute("SELECT webhook_url FROM slack_subscribers").fetchall()
+            webhooks = [r["webhook_url"] for r in rows]
+    except Exception:
+        pass
+
+    # Fallback to settings if DB list is empty
+    if not webhooks:
+        if settings.SLACK_WEBHOOK_URL and "..." not in settings.SLACK_WEBHOOK_URL:
+            webhooks = [settings.SLACK_WEBHOOK_URL]
+
+    if not webhooks:
         from app.utils.logger import get_logger
-        get_logger().warning("Slack webhook URL is empty or placeholder, skipping post")
-        return  # Slack not configured, skip silently
+        get_logger().warning("No Slack webhook URLs configured, skipping digest post")
+        return
 
     blocks = [
         {
@@ -50,8 +65,9 @@ async def post_digest(mentions: list):
     from app.utils.logger import get_logger
     logger = get_logger()
     async with httpx.AsyncClient(timeout=10) as client:
-        try:
-            resp = await client.post(settings.SLACK_WEBHOOK_URL, json=payload)
-            resp.raise_for_status()
-        except Exception as e:
-            logger.error("Failed to post digest to Slack", error=str(e), url=settings.SLACK_WEBHOOK_URL)
+        for url in webhooks:
+            try:
+                resp = await client.post(url, json=payload)
+                resp.raise_for_status()
+            except Exception as e:
+                logger.error("Failed to post digest to Slack webhook", error=str(e), url=url)

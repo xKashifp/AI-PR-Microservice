@@ -34,3 +34,6 @@ class SearchResponse(BaseModel):
     total: int
     page: int
     k: int
+
+class SlackSubscribeRequest(BaseModel):
+    webhook_url: str = Field(..., description="Slack Incoming Webhook URL")

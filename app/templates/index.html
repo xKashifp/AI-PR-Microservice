@@ -553,15 +553,29 @@
                 <!-- Digest -->
                 <div class="panel">
                     <div class="panel-header">
-                        <span class="panel-title"><span>📨</span> Slack Digest</span>
+                        <span class="panel-title"><span>📨</span> Slack Digest & Subscriptions</span>
                     </div>
                     <div class="panel-body">
                         <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
                             Sends top Web3 PR mentions ranked by reach × recency to Slack. Runs automatically at 08:00 UTC.
                         </p>
+                        
+                        <div class="form-group" style="margin-bottom: 12px;">
+                            <label class="form-label" style="font-size:11px;">Add Slack Webhook</label>
+                            <div style="display:flex;gap:8px;">
+                                <input type="text" class="input" id="slack-webhook" placeholder="https://hooks.slack.com/services/..." style="font-size:12px;padding:8px 10px;">
+                                <button class="btn btn-primary btn-sm" onclick="subscribeSlack()" id="subscribe-btn" style="padding: 8px 14px;">Subscribe</button>
+                            </div>
+                        </div>
+
+                        <div id="subscribers-list-container" style="margin-bottom:16px; font-size:12px; display:none;">
+                            <label class="form-label" style="font-size:11px; margin-bottom:4px;">Active Workspaces</label>
+                            <div id="subscribers-list" style="max-height:80px; overflow-y:auto; display:flex; flex-direction:column; gap:4px; padding:4px; background:rgba(0,0,0,0.2); border-radius:6px;"></div>
+                        </div>
+
                         <button class="btn btn-secondary btn-full" onclick="runDigest()" id="digest-btn2">
                             <div class="spinner"></div>
-                            <span class="btn-text">⚡ Trigger Now</span>
+                            <span class="btn-text">⚡ Trigger Digest to All</span>
                         </button>
                         <div id="digest-result" style="margin-top:12px;display:none;font-size:12px;padding:8px 12px;border-radius:8px;"></div>
                     </div>
@@ -850,6 +864,87 @@
         return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
+    // Slack subscribers management
+    async function fetchSubscribers() {
+        try {
+            const r = await fetch(`${API}/slack/subscribers`);
+            const data = await r.json();
+            const container = document.getElementById('subscribers-list-container');
+            const list = document.getElementById('subscribers-list');
+            
+            if (data.length > 0) {
+                container.style.display = 'block';
+                list.innerHTML = data.map(sub => {
+                    const cleanUrl = sub.webhook_url.replace(/https:\/\/hooks\.slack\.com\/services\/[^\/]+\/[^\/]+\//, 'hooks.slack.com/.../');
+                    return `
+                    <div style="display:flex; justify-content:space-between; align-items:center; padding: 2px 4px; border-bottom:1px solid rgba(255,255,255,0.05);">
+                        <span title="${escHtml(sub.webhook_url)}" style="color:var(--text-muted); text-overflow:ellipsis; overflow:hidden; white-space:nowrap; max-width:200px;">${escHtml(cleanUrl)}</span>
+                        <button onclick="unsubscribeSlack('${escHtml(sub.webhook_url)}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:10px; padding:0 4px;">✕</button>
+                    </div>`;
+                }).join('');
+            } else {
+                container.style.display = 'none';
+            }
+        } catch(e) {
+            console.error('Failed to fetch subscribers:', e);
+        }
+    }
+
+    async function subscribeSlack() {
+        const urlInput = document.getElementById('slack-webhook');
+        const url = urlInput.value.trim();
+        if (!url) { toast('Enter a webhook URL', 'error'); return; }
+        if (!url.startsWith('https://hooks.slack.com/services/')) {
+            toast('Invalid webhook URL format', 'error');
+            return;
+        }
+
+        const btn = document.getElementById('subscribe-btn');
+        btn.disabled = true;
+
+        try {
+            const r = await fetch(`${API}/slack/subscribe`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ webhook_url: url })
+            });
+            const data = await r.json();
+            if (!r.ok) throw new Error(data.detail || JSON.stringify(data));
+
+            if (data.status === 'subscribed') {
+                toast('Successfully subscribed Slack workspace!', 'success');
+            } else {
+                toast('Slack workspace already subscribed', 'info');
+            }
+            urlInput.value = '';
+            fetchSubscribers();
+        } catch(e) {
+            toast('Subscription failed: ' + e.message, 'error');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async function unsubscribeSlack(url) {
+        if (!confirm('Unsubscribe this Slack workspace?')) return;
+        try {
+            const r = await fetch(`${API}/slack/unsubscribe`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ webhook_url: url })
+            });
+            if (r.ok) {
+                toast('Unsubscribed Slack workspace', 'success');
+                fetchSubscribers();
+            } else {
+                const data = await r.json();
+                throw new Error(data.detail);
+            }
+        } catch(e) {
+            toast('Failed to unsubscribe: ' + e.message, 'error');
+        }
+    }
+
     // Keyboard shortcut
     document.getElementById('search-query').addEventListener('keydown', e => {
         if (e.key === 'Enter') doSearch();
@@ -857,6 +952,7 @@
 
     // Init
     refreshHealth();
+    fetchSubscribers();
     setInterval(refreshHealth, 30000);
 </script>
 </body>

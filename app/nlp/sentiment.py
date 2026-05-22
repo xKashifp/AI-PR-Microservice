@@ -4,12 +4,22 @@ from functools import lru_cache
 
 @lru_cache(maxsize=1)
 def get_sentiment_pipeline():
-    return pipeline(
+    import torch
+    import gc
+    pipe = pipeline(
         "text-classification",
         model=settings.SENTIMENT_MODEL,
         truncation=True,
         max_length=512
     )
+    try:
+        pipe.model = torch.quantization.quantize_dynamic(
+            pipe.model, {torch.nn.Linear}, dtype=torch.qint8
+        )
+    except Exception:
+        pass
+    gc.collect()
+    return pipe
 
 def analyze(text: str) -> dict:
     pipe = get_sentiment_pipeline()

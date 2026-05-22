@@ -8,9 +8,15 @@ from app.config import settings
 TOPICS = ["product", "funding", "partnership", "thought-leadership", "crisis"]
 MODEL_PATH = os.path.join(settings.MODEL_DIR, "topic_classifier.joblib")
 
+_classifier = None
+
 def load_classifier():
+    global _classifier
+    if _classifier is not None:
+        return _classifier
     if os.path.exists(MODEL_PATH):
-        return joblib.load(MODEL_PATH)
+        _classifier = joblib.load(MODEL_PATH)
+        return _classifier
     raise FileNotFoundError("Topic classifier not trained. Run: python -m ml.train_classifier")
 
 def predict(texts: list) -> list:
