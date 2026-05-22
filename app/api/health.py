@@ -22,8 +22,8 @@ def health():
         "status": "ok",
         "index_total_docs": store.index.ntotal,
         "classifier_ready": classifier_ready,
-        "embedding_model": "all-MiniLM-L6-v2",
-        "sentiment_model": "distilbert-base-uncased-finetuned-sst-2-english",
+        "embedding_model": "gemini-text-embedding-004",
+        "sentiment_model": "lexicon-v1",
         "vector_db": "FAISS",
         "metrics": metrics
     }
