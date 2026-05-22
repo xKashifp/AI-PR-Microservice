@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PR Mention Intelligence | Dashboard</title>
+    <meta name="description" content="AI-powered PR mention intelligence dashboard with semantic search, Web3 entity detection, and Slack digest automation.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0a0f1e;
+            --bg2: #0d1526;
+            --surface: rgba(255, 255, 255, 0.04);
+            --surface-hover: rgba(255, 255, 255, 0.08);
+            --border: rgba(255, 255, 255, 0.08);
+            --border-active: rgba(99, 179, 237, 0.4);
+            --accent: #63b3ed;
+            --accent2: #9f7aea;
+            --accent3: #68d391;
+            --danger: #fc8181;
+            --warn: #f6ad55;
+            --text: #e2e8f0;
+            --text-muted: #718096;
+            --text-dim: #4a5568;
+            --glass: rgba(13, 21, 38, 0.8);
+            --radius: 12px;
+            --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Animated background */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 80% 80% at 20% 10%, rgba(99, 179, 237, 0.07) 0%, transparent 60%),
+                radial-gradient(ellipse 60% 60% at 80% 90%, rgba(159, 122, 234, 0.06) 0%, transparent 60%),
+                radial-gradient(ellipse 40% 40% at 50% 50%, rgba(104, 211, 145, 0.04) 0%, transparent 60%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container { max-width: 1400px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+        /* Header */
+        header {
+            padding: 20px 0;
+            border-bottom: 1px solid var(--border);
+            backdrop-filter: blur(20px);
+            background: var(--glass);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-inner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            width: 40px; height: 40px;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px;
+            box-shadow: 0 0 20px rgba(99, 179, 237, 0.3);
+        }
+
+        .logo-text h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+        .logo-text span { font-size: 12px; color: var(--text-muted); font-weight: 400; }
+
+        .header-actions { display: flex; gap: 12px; align-items: center; }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            border: 1px solid;
+        }
+        .badge-green { background: rgba(104, 211, 145, 0.1); border-color: rgba(104, 211, 145, 0.3); color: var(--accent3); }
+        .badge-blue { background: rgba(99, 179, 237, 0.1); border-color: rgba(99, 179, 237, 0.3); color: var(--accent); }
+        .badge-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: pulse-dot 2s infinite; }
+        @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        /* Main layout */
+        main { padding: 32px 0 60px; }
+
+        /* Stats row */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px;
+            transition: all 0.2s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .stat-card:hover { background: var(--surface-hover); transform: translateY(-2px); box-shadow: var(--shadow); }
+        .stat-card:hover::before { opacity: 1; }
+
+        .stat-label { font-size: 12px; color: var(--text-muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+        .stat-value { font-size: 32px; font-weight: 800; letter-spacing: -1px; }
+        .stat-sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+        .stat-icon { font-size: 24px; float: right; margin-top: -4px; }
+
+        /* Two-column layout */
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 20px;
+        }
+
+        /* Panel */
+        .panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .panel-title { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        .panel-body { padding: 20px; }
+
+        /* Tabs */
+        .tabs { display: flex; gap: 4px; margin-bottom: 20px; background: rgba(0,0,0,0.2); border-radius: 8px; padding: 4px; }
+        .tab {
+            flex: 1;
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            font-family: 'Inter', sans-serif;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .tab.active { background: var(--surface-hover); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
+        .tab:hover:not(.active) { color: var(--text); }
+
+        /* Form controls */
+        .form-group { margin-bottom: 16px; }
+        .form-label { display: block; font-size: 12px; font-weight: 500; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        .input, .textarea, .select {
+            width: 100%;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            padding: 10px 14px;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .input:focus, .textarea:focus, .select:focus {
+            border-color: var(--border-active);
+            box-shadow: 0 0 0 3px rgba(99, 179, 237, 0.1);
+        }
+        .textarea { min-height: 100px; resize: vertical; }
+        .select option { background: #1a2540; }
+
+        .input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent), #4299e1);
+            color: #0a0f1e;
+        }
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(99, 179, 237, 0.4); }
+        .btn-secondary {
+            background: var(--surface-hover);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+        .btn-secondary:hover { background: rgba(255,255,255,0.1); }
+        .btn-danger {
+            background: rgba(252, 129, 129, 0.15);
+            color: var(--danger);
+            border: 1px solid rgba(252, 129, 129, 0.3);
+        }
+        .btn-sm { padding: 6px 14px; font-size: 12px; }
+        .btn-full { width: 100%; justify-content: center; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; }
+        .btn .spinner { width: 14px; height: 14px; border: 2px solid rgba(0,0,0,0.3); border-top-color: #0a0f1e; border-radius: 50%; animation: spin 0.6s linear infinite; display: none; }
+        .btn.loading .spinner { display: block; }
+        .btn.loading .btn-text { opacity: 0.7; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Search results */
+        .result-card {
+            background: rgba(0,0,0,0.2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 12px;
+            transition: all 0.2s;
+            animation: fadeInUp 0.3s ease;
+        }
+        .result-card:hover { border-color: var(--border-active); background: rgba(99, 179, 237, 0.04); }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+        .result-title { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+        .result-summary { font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 10px; }
+        .result-meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+        .chip {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 2px 10px; border-radius: 20px;
+            font-size: 11px; font-weight: 500;
+            border: 1px solid;
+        }
+        .chip-blue { background: rgba(99,179,237,0.1); border-color: rgba(99,179,237,0.25); color: var(--accent); }
+        .chip-green { background: rgba(104,211,145,0.1); border-color: rgba(104,211,145,0.25); color: var(--accent3); }
+        .chip-red { background: rgba(252,129,129,0.1); border-color: rgba(252,129,129,0.25); color: var(--danger); }
+        .chip-purple { background: rgba(159,122,234,0.1); border-color: rgba(159,122,234,0.25); color: var(--accent2); }
+        .chip-yellow { background: rgba(246,173,85,0.1); border-color: rgba(246,173,85,0.25); color: var(--warn); }
+
+        .score-bar {
+            display: flex; align-items: center; gap: 8px;
+            font-size: 11px; color: var(--text-muted);
+            margin-left: auto;
+        }
+        .score-track { width: 60px; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; }
+        .score-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 2px; }
+
+        /* Sidebar */
+        .sidebar { display: flex; flex-direction: column; gap: 16px; }
+
+        /* Health status */
+        .health-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+        .health-item:last-child { border-bottom: none; }
+        .health-label { font-size: 13px; color: var(--text-muted); }
+        .health-status { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; }
+        .dot-green { background: var(--accent3); box-shadow: 0 0 8px rgba(104,211,145,0.5); }
+        .dot-red { background: var(--danger); box-shadow: 0 0 8px rgba(252,129,129,0.5); }
+        .dot-yellow { background: var(--warn); box-shadow: 0 0 8px rgba(246,173,85,0.5); animation: pulse-dot 1.5s infinite; }
+
+        /* Notification toast */
+        .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 1000; display: flex; flex-direction: column; gap: 8px; }
+        .toast {
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 500;
+            backdrop-filter: blur(20px);
+            border: 1px solid;
+            animation: slideIn 0.3s ease;
+            max-width: 320px;
+        }
+        .toast-success { background: rgba(104,211,145,0.15); border-color: rgba(104,211,145,0.3); color: var(--accent3); }
+        .toast-error { background: rgba(252,129,129,0.15); border-color: rgba(252,129,129,0.3); color: var(--danger); }
+        .toast-info { background: rgba(99,179,237,0.15); border-color: rgba(99,179,237,0.3); color: var(--accent); }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+
+        /* Empty state */
+        .empty-state { text-align: center; padding: 40px 20px; color: var(--text-muted); }
+        .empty-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.5; }
+        .empty-title { font-size: 15px; font-weight: 600; margin-bottom: 6px; color: var(--text); }
+
+        /* JSON area */
+        .json-area {
+            background: rgba(0,0,0,0.4);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 14px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: #a3be8c;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        /* Responsive */
+        @media (max-width: 1100px) {
+            .content-grid { grid-template-columns: 1fr; }
+            .sidebar { flex-direction: row; flex-wrap: wrap; }
+            .sidebar .panel { flex: 1; min-width: 280px; }
+        }
+        @media (max-width: 768px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 480px) {
+            .stats-grid { grid-template-columns: 1fr; }
+            .input-row { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="container">
+        <div class="header-inner">
+            <div class="logo">
+                <div class="logo-icon">🧠</div>
+                <div class="logo-text">
+                    <h1>PR Intelligence</h1>
+                    <span>AI-Powered Mention Analytics</span>
+                </div>
+            </div>
+            <div class="header-actions">
+                <span class="badge badge-green" id="health-badge">
+                    <span class="badge-dot"></span>
+                    <span id="health-badge-text">Checking...</span>
+                </span>
+                <span class="badge badge-blue">
+                    <span>FAISS</span>
+                    <span id="doc-count">–</span>
+                </span>
+                <button class="btn btn-secondary btn-sm" onclick="runDigest()" id="digest-btn">
+                    <span>⚡</span> Run Digest
+                </button>
+            </div>
+        </div>
+    </div>
+</header>
+
+<main>
+    <div class="container">
+        <!-- Stats -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Docs</div>
+                <div class="stat-value" id="stat-docs">–</div>
+                <div class="stat-sub">Indexed in FAISS</div>
+                <span class="stat-icon">📄</span>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Last Ingest</div>
+                <div class="stat-value" id="stat-last-ingest" style="font-size:18px;">–</div>
+                <div class="stat-sub">Documents inserted</div>
+                <span class="stat-icon">📥</span>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Search Latency</div>
+                <div class="stat-value" id="stat-latency">–</div>
+                <div class="stat-sub">p95 ms</div>
+                <span class="stat-icon">⚡</span>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Classifier</div>
+                <div class="stat-value" id="stat-classifier" style="font-size:18px;">–</div>
+                <div class="stat-sub">Topic model</div>
+                <span class="stat-icon">🏷️</span>
+            </div>
+        </div>
+
+        <!-- Content grid -->
+        <div class="content-grid">
+            <!-- Main panel -->
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">
+                        <span>🔬</span> Intelligence Console
+                    </span>
+                </div>
+                <div class="panel-body">
+                    <div class="tabs">
+                        <button class="tab active" id="tab-search" onclick="switchTab('search')">🔍 Search</button>
+                        <button class="tab" id="tab-ingest" onclick="switchTab('ingest')">📥 Ingest</button>
+                        <button class="tab" id="tab-web3" onclick="switchTab('web3')">🔗 Web3 Detect</button>
+                    </div>
+
+                    <!-- Search tab -->
+                    <div id="panel-search">
+                        <div class="form-group">
+                            <label class="form-label">Semantic Query</label>
+                            <div style="display:flex;gap:10px;">
+                                <input type="text" class="input" id="search-query" placeholder="e.g. funding announcement Series B..." value="" style="flex:1;">
+                                <button class="btn btn-primary" onclick="doSearch()" id="search-btn">
+                                    <div class="spinner"></div>
+                                    <span class="btn-text">Search</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="input-row" style="margin-bottom:16px;">
+                            <div>
+                                <label class="form-label">Results (k)</label>
+                                <input type="number" class="input" id="search-k" value="10" min="1" max="100">
+                            </div>
+                            <div>
+                                <label class="form-label">Sentiment Filter</label>
+                                <select class="select" id="search-sentiment">
+                                    <option value="">All</option>
+                                    <option value="positive">Positive</option>
+                                    <option value="negative">Negative</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Topic Filter</label>
+                            <select class="select" id="search-topic">
+                                <option value="">All Topics</option>
+                                <option value="product">Product</option>
+                                <option value="funding">Funding</option>
+                                <option value="partnership">Partnership</option>
+                                <option value="thought-leadership">Thought Leadership</option>
+                                <option value="crisis">Crisis</option>
+                            </select>
+                        </div>
+                        <div id="search-results-container">
+                            <div class="empty-state">
+                                <div class="empty-icon">🔍</div>
+                                <div class="empty-title">Enter a query to search</div>
+                                <div style="font-size:13px;">Semantic search across all ingested mentions</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Ingest tab -->
+                    <div id="panel-ingest" style="display:none;">
+                        <div class="form-group">
+                            <label class="form-label">Mentions (JSON array)</label>
+                            <textarea class="textarea" id="ingest-payload" style="min-height:200px; font-family: monospace; font-size:12px;">[
+  {
+    "id": "demo-001",
+    "title": "Acme Corp raises $50M Series B",
+    "text": "Acme Corp has secured $50 million in a Series B round led by Sequoia Capital. Wallet 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045 will hold treasury funds. $ETH will be used for gas.",
+    "source": "TechCrunch",
+    "published_at": "2025-01-15",
+    "reach": 50000
+  }
+]</textarea>
+                        </div>
+                        <div style="display:flex;gap:12px;margin-bottom:20px;">
+                            <button class="btn btn-primary btn-full" onclick="doIngest()" id="ingest-btn">
+                                <div class="spinner"></div>
+                                <span class="btn-text">📥 Ingest Mentions</span>
+                            </button>
+                            <button class="btn btn-secondary btn-sm" onclick="loadDemoData()" title="Load 20 demo mentions">Demo Data</button>
+                        </div>
+                        <div id="ingest-result" style="display:none;">
+                            <label class="form-label">Result</label>
+                            <div class="json-area" id="ingest-result-json"></div>
+                        </div>
+                    </div>
+
+                    <!-- Web3 tab -->
+                    <div id="panel-web3" style="display:none;">
+                        <div class="form-group">
+                            <label class="form-label">Text to Analyze</label>
+                            <textarea class="textarea" id="web3-text" placeholder="Paste any text containing Ethereum addresses, ENS names, or ticker symbols...">Send 1.5 ETH to vitalik.eth from wallet 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045. Meanwhile $ETH and $BTC are breaking ATH today.</textarea>
+                        </div>
+                        <button class="btn btn-primary btn-full" onclick="detectWeb3()">
+                            🔗 Detect Web3 Signals
+                        </button>
+                        <div id="web3-result" style="margin-top:20px; display:none;">
+                            <div id="web3-chips"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <!-- Health -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="panel-title"><span>❤️</span> System Health</span>
+                        <button class="btn btn-secondary btn-sm" onclick="refreshHealth()">↻</button>
+                    </div>
+                    <div class="panel-body" id="health-panel">
+                        <div class="health-item">
+                            <span class="health-label">FAISS Index</span>
+                            <span class="health-status"><span class="dot dot-yellow" id="dot-faiss"></span><span id="val-faiss">–</span></span>
+                        </div>
+                        <div class="health-item">
+                            <span class="health-label">Topic Classifier</span>
+                            <span class="health-status"><span class="dot dot-yellow" id="dot-clf"></span><span id="val-clf">–</span></span>
+                        </div>
+                        <div class="health-item">
+                            <span class="health-label">Embedding Model</span>
+                            <span class="health-status"><span class="dot dot-green"></span><span>MiniLM-L6</span></span>
+                        </div>
+                        <div class="health-item">
+                            <span class="health-label">Sentiment Model</span>
+                            <span class="health-status"><span class="dot dot-green"></span><span>DistilBERT</span></span>
+                        </div>
+                        <div class="health-item">
+                            <span class="health-label">Vector DB</span>
+                            <span class="health-status"><span class="dot dot-green"></span><span>FAISS</span></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Digest -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="panel-title"><span>📨</span> Slack Digest</span>
+                    </div>
+                    <div class="panel-body">
+                        <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
+                            Sends top Web3 PR mentions ranked by reach × recency to Slack. Runs automatically at 08:00 UTC.
+                        </p>
+                        <button class="btn btn-secondary btn-full" onclick="runDigest()" id="digest-btn2">
+                            <div class="spinner"></div>
+                            <span class="btn-text">⚡ Trigger Now</span>
+                        </button>
+                        <div id="digest-result" style="margin-top:12px;display:none;font-size:12px;padding:8px 12px;border-radius:8px;"></div>
+                    </div>
+                </div>
+
+                <!-- API Quick Reference -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="panel-title"><span>📋</span> API Reference</span>
+                        <a href="/docs" target="_blank" class="btn btn-secondary btn-sm">OpenAPI ↗</a>
+                    </div>
+                    <div class="panel-body" style="padding:12px;">
+                        <div style="font-family:monospace;font-size:12px;display:flex;flex-direction:column;gap:8px;">
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                <span class="chip chip-green">POST</span>
+                                <span style="color:var(--text-muted);">/ingest</span>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                <span class="chip chip-blue">GET</span>
+                                <span style="color:var(--text-muted);">/search</span>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                <span class="chip chip-blue">GET</span>
+                                <span style="color:var(--text-muted);">/health</span>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                <span class="chip chip-purple">POST</span>
+                                <span style="color:var(--text-muted);">/run_digest</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<div class="toast-container" id="toasts"></div>
+
+<script>
+    const API = window.location.origin;
+    let healthData = null;
+
+    // Tab switching
+    function switchTab(name) {
+        ['search','ingest','web3'].forEach(t => {
+            document.getElementById(`tab-${t}`).classList.toggle('active', t === name);
+            document.getElementById(`panel-${t}`).style.display = t === name ? '' : 'none';
+        });
+    }
+
+    // Toast notifications
+    function toast(msg, type = 'info', duration = 4000) {
+        const el = document.createElement('div');
+        el.className = `toast toast-${type}`;
+        el.textContent = msg;
+        document.getElementById('toasts').appendChild(el);
+        setTimeout(() => el.remove(), duration);
+    }
+
+    // Health check
+    async function refreshHealth() {
+        try {
+            const r = await fetch(`${API}/health`);
+            healthData = await r.json();
+
+            const docs = healthData.index_total_docs ?? 0;
+            document.getElementById('stat-docs').textContent = docs.toLocaleString();
+            document.getElementById('doc-count').textContent = docs;
+            document.getElementById('stat-classifier').textContent = healthData.classifier_ready ? 'Ready ✓' : 'Not Trained';
+            document.getElementById('stat-latency').textContent = healthData.metrics?.p95_latency_ms ? `${healthData.metrics.p95_latency_ms}` : '–';
+
+            // Update dots
+            const clfReady = healthData.classifier_ready;
+            document.getElementById('dot-clf').className = `dot ${clfReady ? 'dot-green' : 'dot-red'}`;
+            document.getElementById('val-clf').textContent = clfReady ? 'Ready' : 'Not trained';
+
+            const faissOk = docs >= 0;
+            document.getElementById('dot-faiss').className = 'dot dot-green';
+            document.getElementById('val-faiss').textContent = `${docs} docs`;
+
+            // Header badge
+            document.getElementById('health-badge-text').textContent = healthData.status === 'ok' ? 'Operational' : 'Degraded';
+
+        } catch(e) {
+            document.getElementById('health-badge-text').textContent = 'Unreachable';
+            toast('Health check failed: ' + e.message, 'error');
+        }
+    }
+
+    // Search
+    async function doSearch() {
+        const query = document.getElementById('search-query').value.trim();
+        if (!query) { toast('Enter a search query', 'error'); return; }
+
+        const btn = document.getElementById('search-btn');
+        btn.classList.add('loading'); btn.disabled = true;
+
+        const k = document.getElementById('search-k').value || 10;
+        const sentiment = document.getElementById('search-sentiment').value;
+        const topic = document.getElementById('search-topic').value;
+
+        let url = `${API}/search?query=${encodeURIComponent(query)}&k=${k}`;
+        if (sentiment) url += `&sentiment_filter=${sentiment}`;
+        if (topic) url += `&topic_filter=${topic}`;
+
+        try {
+            const r = await fetch(url);
+            if (!r.ok) {
+                const err = await r.json();
+                throw new Error(err.detail || r.statusText);
+            }
+            const data = await r.json();
+            renderResults(data);
+            refreshHealth();
+        } catch(e) {
+            toast('Search failed: ' + e.message, 'error');
+        } finally {
+            btn.classList.remove('loading'); btn.disabled = false;
+        }
+    }
+
+    function renderResults(data) {
+        const container = document.getElementById('search-results-container');
+        if (!data.results || data.results.length === 0) {
+            container.innerHTML = `<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">No results found</div><div style="font-size:13px">Try a different query or ingest more data</div></div>`;
+            return;
+        }
+
+        const html = data.results.map((r, i) => {
+            const scorePercent = Math.min(100, (r.score * 100)).toFixed(0);
+            const topicsHtml = (r.topics || []).map(t => `<span class="chip chip-purple">${t}</span>`).join('');
+            const sentChip = r.sentiment === 'positive' ? 'chip-green' : r.sentiment === 'negative' ? 'chip-red' : 'chip-yellow';
+            return `
+            <div class="result-card">
+                <div class="result-title">${escHtml(r.title || '(No title)')}</div>
+                ${r.summary ? `<div class="result-summary">${escHtml(r.summary)}</div>` : ''}
+                <div class="result-meta">
+                    ${r.sentiment ? `<span class="chip ${sentChip}">${r.sentiment}</span>` : ''}
+                    ${topicsHtml}
+                    ${r.source ? `<span class="chip chip-blue">📰 ${escHtml(r.source)}</span>` : ''}
+                    <div class="score-bar">
+                        <div class="score-track"><div class="score-fill" style="width:${scorePercent}%"></div></div>
+                        <span>${r.score.toFixed(3)}</span>
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+
+        container.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <span style="font-size:13px;color:var(--text-muted);">${data.total} result${data.total !== 1 ? 's' : ''} found</span>
+                <span style="font-size:12px;color:var(--text-dim);">k=${data.k} · page ${data.page}</span>
+            </div>
+            ${html}`;
+    }
+
+    // Ingest
+    async function doIngest() {
+        const payloadRaw = document.getElementById('ingest-payload').value.trim();
+        let payload;
+        try {
+            const arr = JSON.parse(payloadRaw);
+            payload = { mentions: Array.isArray(arr) ? arr : [arr] };
+        } catch(e) {
+            toast('Invalid JSON: ' + e.message, 'error');
+            return;
+        }
+
+        const btn = document.getElementById('ingest-btn');
+        btn.classList.add('loading'); btn.disabled = true;
+
+        try {
+            const r = await fetch(`${API}/ingest`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            const data = await r.json();
+            if (!r.ok) throw new Error(data.detail || JSON.stringify(data));
+
+            document.getElementById('ingest-result').style.display = '';
+            document.getElementById('ingest-result-json').textContent = JSON.stringify(data, null, 2);
+            document.getElementById('stat-last-ingest').textContent = `+${data.inserted}/${data.updated}`;
+
+            toast(`✅ Ingested ${data.inserted} new, ${data.updated} updated`, 'success');
+            refreshHealth();
+        } catch(e) {
+            toast('Ingest failed: ' + e.message, 'error');
+        } finally {
+            btn.classList.remove('loading'); btn.disabled = false;
+        }
+    }
+
+    function loadDemoData() {
+        const demos = [];
+        const sources = ['TechCrunch','CoinDesk','Bloomberg','Forbes','Reuters'];
+        const topics_pool = [
+            ['Acme raises $50M Series B led by Sequoia', 'Acme Corp has secured $50M in Series B funding led by Sequoia Capital to expand globally. $ETH paid in gas.'],
+            ['Vitalik.eth launches new DAO governance', 'vitalik.eth announces new DAO governance model. Wallet 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045 holds treasury.'],
+            ['TechNova partners with Microsoft Azure', 'TechNova and Microsoft announce strategic partnership to deliver cloud analytics at enterprise scale.'],
+            ['DataSphere CEO on AI future', 'DataSphere CEO argues AI will fundamentally reshape enterprise software in the next 24 months.'],
+            ['NexGen faces regulatory probe', 'NexGen under investigation for data privacy violations affecting 2M users. $MATIC down 15%.'],
+        ];
+        for (let i = 0; i < 20; i++) {
+            const [title, text] = topics_pool[i % topics_pool.length];
+            demos.push({
+                id: `demo-${Date.now()}-${i}`,
+                title: `${title} #${i+1}`,
+                text,
+                source: sources[i % sources.length],
+                published_at: new Date(Date.now() - i * 86400000).toISOString().split('T')[0],
+                reach: Math.floor(Math.random() * 100000) + 1000
+            });
+        }
+        document.getElementById('ingest-payload').value = JSON.stringify(demos, null, 2);
+        toast('20 demo mentions loaded. Click Ingest to process.', 'info');
+    }
+
+    // Web3 detection (client-side regex preview)
+    function detectWeb3() {
+        const text = document.getElementById('web3-text').value;
+        const ethRE = /\b0x[a-fA-F0-9]{40}\b/g;
+        const ensRE = /\b[\w-]+\.eth\b/g;
+        const tickerRE = /\$[A-Z]{2,10}\b/g;
+
+        const eth = [...text.matchAll(ethRE)].map(m => m[0]);
+        const ens = [...text.matchAll(ensRE)].map(m => m[0]);
+        const tickers = [...text.matchAll(tickerRE)].map(m => m[0]);
+
+        const container = document.getElementById('web3-result');
+        const chips = document.getElementById('web3-chips');
+        container.style.display = '';
+
+        if (!eth.length && !ens.length && !tickers.length) {
+            chips.innerHTML = `<div class="empty-state" style="padding:20px;"><div class="empty-icon">🔍</div><div class="empty-title">No Web3 signals detected</div></div>`;
+            return;
+        }
+
+        chips.innerHTML = `
+            <div style="display:flex;flex-direction:column;gap:12px;">
+                ${eth.length ? `<div>
+                    <div class="form-label" style="margin-bottom:8px;">ETH Addresses (${eth.length})</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                        ${eth.map(a => `<span class="chip chip-blue" style="font-family:monospace;">${a.slice(0,8)}…${a.slice(-6)}</span>`).join('')}
+                    </div>
+                </div>` : ''}
+                ${ens.length ? `<div>
+                    <div class="form-label" style="margin-bottom:8px;">ENS Names (${ens.length})</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                        ${ens.map(e => `<span class="chip chip-purple">🌐 ${e}</span>`).join('')}
+                    </div>
+                </div>` : ''}
+                ${tickers.length ? `<div>
+                    <div class="form-label" style="margin-bottom:8px;">Token Tickers (${tickers.length})</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                        ${tickers.map(t => `<span class="chip chip-yellow">📈 ${t}</span>`).join('')}
+                    </div>
+                </div>` : ''}
+            </div>`;
+        toast(`Detected: ${eth.length} addr, ${ens.length} ENS, ${tickers.length} tickers`, 'success');
+    }
+
+    // Digest
+    async function runDigest() {
+        const btns = ['digest-btn', 'digest-btn2'].map(id => document.getElementById(id));
+        btns.forEach(b => { if(b) { b.classList.add('loading'); b.disabled = true; }});
+        try {
+            const r = await fetch(`${API}/run_digest`, {method: 'POST'});
+            const data = await r.json();
+            const resultEl = document.getElementById('digest-result');
+            resultEl.style.display = '';
+            resultEl.className = 'toast-success';
+            resultEl.style.cssText = 'margin-top:12px;display:block;font-size:12px;padding:8px 12px;border-radius:8px;background:rgba(104,211,145,0.1);border:1px solid rgba(104,211,145,0.3);color:var(--accent3);';
+            resultEl.textContent = `✅ ${data.status}`;
+            toast('Slack digest sent successfully!', 'success');
+        } catch(e) {
+            toast('Digest failed: ' + e.message, 'error');
+        } finally {
+            btns.forEach(b => { if(b) { b.classList.remove('loading'); b.disabled = false; }});
+        }
+    }
+
+    // Utils
+    function escHtml(str) {
+        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // Keyboard shortcut
+    document.getElementById('search-query').addEventListener('keydown', e => {
+        if (e.key === 'Enter') doSearch();
+    });
+
+    // Init
+    refreshHealth();
+    setInterval(refreshHealth, 30000);
+</script>
+</body>
+</html>

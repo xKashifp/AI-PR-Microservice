@@ -1,0 +1,31 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Configuration
+.env
+
+# Local databases and vector index
+data/
+*.db
+*.index
+
+# ML models (large binaries generated on setup)
+ml/models/
+
+# Testing and coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.cache/
+
+# OS files
+.DS_Store
+Thumbs.db
