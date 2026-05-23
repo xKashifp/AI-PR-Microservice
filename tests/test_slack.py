@@ -73,3 +73,44 @@ async def test_slack_skips_when_no_webhook():
         with patch("httpx.AsyncClient") as mock_client:
             await post_digest([{"id": "1", "title": "Test", "summary": "S", "reach": 0, "sentiment": "positive", "web3_signals": {}}])
             mock_client.assert_not_called()
+
+
+def test_slack_digest_tracks_sent_mentions(client, web3_mention):
+    """Verify that sent mentions are marked as sent_to_slack = 1 and not re-sent in subsequent digests."""
+    from app.models.db import db_conn
+    
+    # 1. Clear database mentions
+    with db_conn() as conn:
+        conn.execute("DELETE FROM mentions")
+        
+    # 2. Ingest a mock Web3 mention
+    r_ingest = client.post("/ingest", json={"mentions": [web3_mention]})
+    assert r_ingest.status_code == 200
+    
+    # Verify it starts with sent_to_slack = 0
+    with db_conn() as conn:
+        row = conn.execute("SELECT sent_to_slack FROM mentions WHERE id = ?", (web3_mention["id"],)).fetchone()
+        assert row is not None
+        assert row["sent_to_slack"] == 0
+
+    # 3. Trigger /run_digest
+    with patch("app.jobs.scheduler.post_digest", new_callable=AsyncMock) as mock_post_digest:
+        r_digest1 = client.post("/run_digest")
+        assert r_digest1.status_code == 200
+        
+        # Verify post_digest was called with our mention
+        mock_post_digest.assert_called_once()
+        called_mentions = mock_post_digest.call_args[0][0]
+        assert len(called_mentions) == 1
+        assert called_mentions[0]["id"] == web3_mention["id"]
+        
+    # 4. Verify mention is now marked as sent_to_slack = 1
+    with db_conn() as conn:
+        row = conn.execute("SELECT sent_to_slack FROM mentions WHERE id = ?", (web3_mention["id"],)).fetchone()
+        assert row["sent_to_slack"] == 1
+
+    # 5. Trigger /run_digest again
+    with patch("app.jobs.scheduler.post_digest", new_callable=AsyncMock) as mock_post_digest:
+        r_digest2 = client.post("/run_digest")
+        assert r_digest2.status_code == 200
+        mock_post_digest.assert_not_called()

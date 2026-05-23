@@ -115,7 +115,8 @@ async def run_nightly_digest():
         rows = conn.execute("""
             SELECT id, title, source, reach, sentiment, summary, web3_signals, published_at
             FROM mentions
-            WHERE web3_signals IS NOT NULL
+            WHERE sent_to_slack = 0
+              AND web3_signals IS NOT NULL
               AND web3_signals != '{}'
               AND (
                 web3_signals LIKE '%eth_addresses%'
@@ -136,6 +137,14 @@ async def run_nightly_digest():
 
     if mentions:
         await post_digest(mentions)
+        
+        # Mark these mentions as sent to prevent resending them in the next digest
+        mention_ids = [m["id"] for m in mentions]
+        with db_conn() as conn:
+            conn.executemany(
+                "UPDATE mentions SET sent_to_slack = 1 WHERE id = ?",
+                [(m_id,) for m_id in mention_ids]
+            )
 
 def start_scheduler():
     # Nightly digest

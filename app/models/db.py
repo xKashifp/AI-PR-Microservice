@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS mentions (
     topics        TEXT,          -- JSON array string
     summary       TEXT,
     web3_signals  TEXT,          -- JSON dict string
+    sent_to_slack INTEGER DEFAULT 0, -- 0 = unsent, 1 = sent
     created_at    TEXT DEFAULT (datetime('now'))
 );
 
@@ -69,7 +70,7 @@ def init_db():
             columns = [row["name"] for row in cursor.fetchall()]
             
             # If any required column is missing, recreate table
-            required_cols = ["id", "title", "text", "source", "published_at", "reach", "sentiment", "sentiment_score", "topics", "summary", "web3_signals"]
+            required_cols = ["id", "title", "text", "source", "published_at", "reach", "sentiment", "sentiment_score", "topics", "summary", "web3_signals", "sent_to_slack"]
             missing = [c for c in required_cols if c not in columns]
             if missing:
                 conn.execute("DROP TABLE mentions")
