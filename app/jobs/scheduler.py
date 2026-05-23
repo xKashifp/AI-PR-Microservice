@@ -16,7 +16,7 @@ scheduler = AsyncIOScheduler()
 
 DEFAULT_FEEDS = {
     "TechCrunch": "https://techcrunch.com/feed/",
-    "CoinDesk": "https://www.coindesk.com/arc/outboundfeed/rss/",
+    "CoinDesk": "https://www.coindesk.com/arc/outboundfeeds/rss/?outputType=xml",
     "CoinTelegraph": "https://cointelegraph.com/rss"
 }
 
