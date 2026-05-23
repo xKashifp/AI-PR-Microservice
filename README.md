@@ -73,10 +73,16 @@ tests/
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/ingest` | Ingest CSV/JSON mentions (idempotent upsert) |
+| POST | `/ingest` | Ingest CSV/JSON/NDJSON mentions (idempotent upsert) |
 | GET | `/search` | Semantic search with filters + recency/reach boost |
 | GET | `/health` | Model and index readiness check |
-| POST | `/run_digest` | Manually trigger Slack Web3 digest |
+| POST | `/run_digest` | Manually trigger Slack Web3 digest to all targets |
+| GET | `/slack/subscribers` | List active manual webhook subscriptions |
+| POST | `/slack/unsubscribe/{sub_id}` | Disconnect/Remove manual webhook subscription by ID |
+| GET | `/slack/install` | Initiate Slack App OAuth connection flow |
+| GET | `/slack/oauth/callback` | Slack App OAuth authorization callback handler |
+| GET | `/slack/oauth/installations` | List active Slack App OAuth connections |
+| POST | `/slack/oauth/disconnect/{id}` | Disconnect/Remove Slack App OAuth connection by ID |
 
 ### Ingest Example
 
@@ -114,18 +120,21 @@ docker build -t pr-intelligence .
 docker-compose up -d
 ```
 
-## Success Criteria
+## Success Criteria & Key Implementations
 
-| Criterion | Target | Implementation |
-|-----------|--------|---------------|
-| Ingest 10k docs | ≤ 90s | Batch embedding (64/batch) + async summarize |
-| Search p95 | ≤ 300ms | FAISS flat IP + singleton models |
+| Criterion | Target | Implementation Status |
+|-----------|--------|-----------------------|
+| Ingest 10k docs | ≤ 90s | Batch embedding (64/batch) + transaction-decoupled async processing |
+| Search p95 | ≤ 300ms | FAISS flat IP + singleton models (hot-start testing preserved) |
 | Topic classifier F1 | ≥ 0.70 | LogisticRegression + TF-IDF bigrams |
 | Summary length | ≤ 350 chars | Enforced in summarizer post-processing |
 | Web3 detection | ≥ 90% accuracy | Regex for standard ETH/ENS/ticker formats |
 | Rate limiting | 429 > 20 RPS | slowapi per-endpoint limiter |
 | Docker size | ≤ 1.5GB | python:3.11-slim + faiss-cpu + CPU torch |
-| Test coverage | > 85% | Full suite across all modules |
+| Test coverage | > 85% | Full suite across all modules (including new Slack/FAISS tests) |
+| Memory Limits | ≤ 512MB RAM | Model Swapping: loads & unloads SentenceTransformer/sentiment models sequentially |
+| Idempotency | Clean updates | Vector Index reconstruction on duplicate doc_id update |
+| Alert Broadcast | Multi-workspace | Loops through OAuth and manual subscribers; updates database `sent_to_slack` flag |
 
 ## Environment Variables
 
@@ -134,5 +143,9 @@ See [`.env.example`](.env.example) for all configuration options.
 Key variables:
 - `GROQ_API_KEY`: Groq API key for LLM summarization (free tier)
 - `GEMINI_API_KEY`: Fallback Gemini API key
-- `SLACK_WEBHOOK_URL`: Slack incoming webhook for digests
+- `SLACK_WEBHOOK_URL`: Slack incoming webhook for default digests
+- `SLACK_CLIENT_ID`: Slack App Client ID for OAuth connections (configure on Render)
+- `SLACK_CLIENT_SECRET`: Slack App Client Secret for OAuth (configure on Render)
+- `SLACK_REDIRECT_URI`: Slack App Redirect URI (e.g. `https://your-app.onrender.com/slack/oauth/callback`)
 - `ALCHEMY_RPC_URL`: Ethereum RPC for ENS resolution
+- `SQLITE_DB_PATH`: SQLite database file path (e.g. `/data/pr_intelligence.db` if using Render persistent disk)
