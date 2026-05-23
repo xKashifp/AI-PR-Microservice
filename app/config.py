@@ -31,3 +31,6 @@ class Settings(BaseSettings):
     model_config = ConfigDict(env_file=".env")
 
 settings = Settings()
+settings.SLACK_CLIENT_ID = settings.SLACK_CLIENT_ID.strip()
+settings.SLACK_CLIENT_SECRET = settings.SLACK_CLIENT_SECRET.strip()
+settings.SLACK_REDIRECT_URI = settings.SLACK_REDIRECT_URI.strip()
