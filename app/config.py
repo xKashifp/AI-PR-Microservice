@@ -13,6 +13,9 @@ class Settings(BaseSettings):
 
     # Slack
     SLACK_WEBHOOK_URL: str = ""
+    SLACK_CLIENT_ID: str = ""
+    SLACK_CLIENT_SECRET: str = ""
+    SLACK_REDIRECT_URI: str = ""
 
     # Paths
     FAISS_INDEX_DIR: str = "./data/faiss_index"

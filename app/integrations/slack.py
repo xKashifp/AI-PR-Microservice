@@ -7,15 +7,20 @@ async def post_digest(mentions: list):
     try:
         from app.models.db import db_conn
         with db_conn() as conn:
+            # Fetch manual subscribers
             rows = conn.execute("SELECT webhook_url FROM slack_subscribers").fetchall()
-            webhooks = [r["webhook_url"] for r in rows]
+            webhooks.extend([r["webhook_url"] for r in rows])
+            
+            # Fetch OAuth installations
+            oauth_rows = conn.execute("SELECT webhook_url FROM slack_oauth_installations").fetchall()
+            webhooks.extend([r["webhook_url"] for r in oauth_rows])
     except Exception:
         pass
 
-    # Fallback to settings if DB list is empty
-    if not webhooks:
-        if settings.SLACK_WEBHOOK_URL and "..." not in settings.SLACK_WEBHOOK_URL:
-            webhooks = [settings.SLACK_WEBHOOK_URL]
+    # Always include settings.SLACK_WEBHOOK_URL by default if configured
+    if settings.SLACK_WEBHOOK_URL and "..." not in settings.SLACK_WEBHOOK_URL:
+        if settings.SLACK_WEBHOOK_URL not in webhooks:
+            webhooks.append(settings.SLACK_WEBHOOK_URL)
 
     if not webhooks:
         from app.utils.logger import get_logger

@@ -28,6 +28,17 @@ CREATE TABLE IF NOT EXISTS slack_subscribers (
     webhook_url   TEXT UNIQUE NOT NULL,
     created_at    TEXT DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS slack_oauth_installations (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    team_id       TEXT,
+    team_name     TEXT,
+    channel_id    TEXT,
+    channel_name  TEXT,
+    webhook_url   TEXT UNIQUE NOT NULL,
+    access_token  TEXT,
+    created_at    TEXT DEFAULT (datetime('now'))
+);
 """
 
 def get_conn():
@@ -62,5 +73,18 @@ def init_db():
             missing = [c for c in required_cols if c not in columns]
             if missing:
                 conn.execute("DROP TABLE mentions")
+        
+        # Check slack_oauth_installations table
+        oauth_table_exists = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='slack_oauth_installations'"
+        ).fetchone()
+        
+        if oauth_table_exists:
+            cursor = conn.execute("PRAGMA table_info(slack_oauth_installations)")
+            columns = [row["name"] for row in cursor.fetchall()]
+            required_oauth_cols = ["id", "team_id", "team_name", "channel_id", "channel_name", "webhook_url", "access_token", "created_at"]
+            missing_oauth = [c for c in required_oauth_cols if c not in columns]
+            if missing_oauth:
+                conn.execute("DROP TABLE slack_oauth_installations")
         
         conn.executescript(SCHEMA)

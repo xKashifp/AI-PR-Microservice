@@ -217,6 +217,7 @@
         .btn {
             display: inline-flex;
             align-items: center;
+            justify-content: center;
             gap: 8px;
             padding: 10px 20px;
             border-radius: 8px;
@@ -562,8 +563,9 @@
                             Sends top Web3 PR mentions ranked by reach × recency to Slack. Runs automatically at 08:00 UTC.
                         </p>
                         
+                        <!-- Manual Webhook Section -->
                         <div class="form-group" style="margin-bottom: 16px;">
-                            <label class="form-label" style="font-size:11px;">Slack Webhook URL</label>
+                            <label class="form-label" style="font-size:11px;">Slack Webhook URL (Manual)</label>
                             <input type="text" class="input" id="slack-webhook" placeholder="https://hooks.slack.com/services/..." style="font-size:12px;padding:8px 10px;margin-bottom:8px;width:100%;">
                             <div style="display:flex;gap:8px;">
                                 <button class="btn btn-primary btn-sm" onclick="subscribeSlack()" id="subscribe-btn" style="flex:1;padding:8px 0;">Subscribe</button>
@@ -571,7 +573,18 @@
                             </div>
                         </div>
 
-                        <button class="btn btn-secondary btn-full" onclick="runDigest()" id="digest-btn2">
+                        <!-- OAuth Connection Section -->
+                        <div style="border-top:1px solid rgba(255,255,255,0.08); padding-top:16px; margin-top:16px; margin-bottom:16px;">
+                            <label class="form-label" style="font-size:11px; margin-bottom:8px;">Slack App Connection (OAuth)</label>
+                            <a href="/slack/install" class="btn btn-primary btn-sm btn-full" style="display:inline-flex; align-items:center; justify-content:center; text-decoration:none; margin-bottom:12px; font-weight:500;">🔌 Connect Slack Workspace</a>
+                            
+                            <div id="oauth-connections-container" style="display:none; font-size:12px;">
+                                <label class="form-label" style="font-size:10px; margin-bottom:4px; color:var(--text-muted);">Connected Workspaces</label>
+                                <div id="oauth-connections-list" style="display:flex; flex-direction:column; gap:4px; padding:6px; background:rgba(0,0,0,0.2); border-radius:6px; max-height:100px; overflow-y:auto;"></div>
+                            </div>
+                        </div>
+
+                        <button class="btn btn-secondary btn-full" onclick="runDigest()" id="digest-btn2" style="border-top:1px solid rgba(255,255,255,0.08); padding-top:12px;">
                             <div class="spinner"></div>
                             <span class="btn-text">⚡ Trigger Digest to All</span>
                         </button>
@@ -965,13 +978,66 @@
         }
     }
 
+    // Slack OAuth Connections management
+    async function fetchOAuthInstallations() {
+        try {
+            const r = await fetch(`${API}/slack/oauth/installations`);
+            const data = await r.json();
+            const container = document.getElementById('oauth-connections-container');
+            const list = document.getElementById('oauth-connections-list');
+            if (data && data.length > 0) {
+                container.style.display = 'block';
+                list.innerHTML = data.map(inst => `
+                    <div style="display:flex; justify-content:space-between; align-items:center; padding: 4px; border-bottom:1px solid rgba(255,255,255,0.03); gap: 8px;">
+                        <span style="color:var(--text-muted); text-overflow:ellipsis; overflow:hidden; white-space:nowrap; max-width:200px;" title="${escHtml(inst.team_name)} - ${escHtml(inst.channel_name)}">
+                            <strong>${escHtml(inst.team_name)}</strong> (${escHtml(inst.channel_name)})
+                        </span>
+                        <button onclick="disconnectOAuth(${inst.id})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:10px; padding:0 4px; flex-shrink:0;">Disconnect</button>
+                    </div>
+                `).join('');
+            } else {
+                container.style.display = 'none';
+            }
+        } catch(e) {
+            console.error('Failed to fetch OAuth installations:', e);
+        }
+    }
+
+    async function disconnectOAuth(id) {
+        if (!confirm('Disconnect this Slack workspace?')) return;
+        try {
+            const r = await fetch(`${API}/slack/oauth/disconnect/${id}`, { method: 'POST' });
+            if (r.ok) {
+                toast('Disconnected Slack workspace', 'success');
+                fetchOAuthInstallations();
+            } else {
+                const data = await r.json();
+                throw new Error(data.detail || 'Disconnect failed');
+            }
+        } catch(e) {
+            toast('Failed to disconnect: ' + e.message, 'error');
+        }
+    }
+
     // Keyboard shortcut
     document.getElementById('search-query').addEventListener('keydown', e => {
         if (e.key === 'Enter') doSearch();
     });
 
+    // Check query params for Slack OAuth callbacks
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('slack_success')) {
+        toast('Slack workspace successfully connected!', 'success');
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+    if (urlParams.has('slack_error')) {
+        toast('Slack connect failed: ' + urlParams.get('slack_error'), 'error');
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
     // Init
     refreshHealth();
+    fetchOAuthInstallations();
     setInterval(refreshHealth, 30000);
 </script>
 </body>
