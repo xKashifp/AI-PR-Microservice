@@ -124,7 +124,7 @@ async def run_nightly_digest():
                 OR web3_signals LIKE '%ens_names%'
               )
             ORDER BY (reach * 1.0 / MAX(1, JULIANDAY('now') - JULIANDAY(published_at))) DESC
-            LIMIT 10
+            LIMIT 3
         """).fetchall()
         mentions = [dict(r) for r in rows]
 
@@ -147,12 +147,11 @@ async def run_nightly_digest():
             )
 
 def start_scheduler():
-    # Nightly digest
+    # Periodic digest (every 90 minutes)
     scheduler.add_job(
         run_nightly_digest,
-        "cron",
-        hour=8,
-        minute=0,
+        "interval",
+        minutes=90,
         id="nightly_digest",
         replace_existing=True
     )
