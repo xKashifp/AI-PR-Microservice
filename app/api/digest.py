@@ -64,6 +64,9 @@ async def slack_install():
     if not settings.SLACK_CLIENT_ID or not settings.SLACK_REDIRECT_URI:
         raise HTTPException(status_code=400, detail="Slack Client credentials not configured in backend settings.")
     
+    from app.utils.logger import get_logger
+    get_logger().info("Slack OAuth install requested", redirect_uri=settings.SLACK_REDIRECT_URI)
+    
     install_url = (
         f"https://slack.com/oauth/v2/authorize"
         f"?client_id={settings.SLACK_CLIENT_ID}"
@@ -79,6 +82,10 @@ async def slack_oauth_callback(code: str = None, error: str = None):
     if not code:
         raise HTTPException(status_code=400, detail="Missing authorization code")
         
+    from app.utils.logger import get_logger
+    logger = get_logger()
+    logger.info("Slack OAuth callback received, exchanging code", redirect_uri=settings.SLACK_REDIRECT_URI)
+    
     async with httpx.AsyncClient(timeout=10) as client:
         try:
             resp = await client.post(
@@ -92,6 +99,7 @@ async def slack_oauth_callback(code: str = None, error: str = None):
             )
             resp.raise_for_status()
             data = resp.json()
+            logger.info("Slack OAuth response payload", data=data)
         except Exception as e:
             return RedirectResponse(url=f"/?slack_error=OAuth exchange failed: {str(e)}")
             
