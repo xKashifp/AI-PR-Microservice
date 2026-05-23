@@ -40,6 +40,20 @@ class FAISSStore:
         if doc_id in self.id_to_pos:
             pos = self.id_to_pos[doc_id]
             self.metadata[pos] = meta
+            
+            # Reconstruct all vectors, replace the updated one, and rebuild the IndexFlatIP
+            all_vectors = []
+            for i in range(self.index.ntotal):
+                if i == pos:
+                    all_vectors.append(vec.flatten())
+                else:
+                    all_vectors.append(self.index.reconstruct(i))
+            
+            new_index = faiss.IndexFlatIP(self.dim)
+            if all_vectors:
+                new_vectors = np.array(all_vectors, dtype=np.float32)
+                new_index.add(new_vectors)
+            self.index = new_index
         else:
             pos = len(self.metadata)
             self.index.add(vec)

@@ -38,65 +38,93 @@ async def process_and_ingest_mentions(mentions_data: list[MentionIn]) -> dict:
     # Batch classify topics
     topic_preds = classify_topics(texts)
 
-    with db_conn() as conn:
-        for i, mention in enumerate(mentions_data):
-            try:
-                # Sentiment analysis
-                sent = analyze_sentiment(mention.text)
+    # Pre-process all NLP, Web3 and summary data outside of DB transaction to avoid locking SQLite
+    processed_items = []
+    for i, mention in enumerate(mentions_data):
+        try:
+            # Sentiment analysis
+            sent = analyze_sentiment(mention.text)
 
-                # Summarization (async, with fallback)
-                summary = await summarize(mention.text)
+            # Summarization (async, with fallback)
+            summary = await summarize(mention.text)
 
-                # Web3 detection + enrichment
-                raw_signals = detect_web3_signals(mention.text)
-                enriched = enrich_signals(raw_signals)
+            # Web3 detection + enrichment
+            raw_signals = detect_web3_signals(mention.text)
+            enriched = enrich_signals(raw_signals)
 
-                topics = topic_preds[i]
+            topics = topic_preds[i]
+            
+            processed_items.append({
+                "mention": mention,
+                "vector": vectors[i],
+                "sent": sent,
+                "summary": summary,
+                "enriched": enriched,
+                "topics": topics
+            })
+        except Exception as e:
+            errors.append({"id": mention.id, "error": str(e)})
 
-                # Idempotent upsert to SQLite
-                existing = conn.execute(
-                    "SELECT id FROM mentions WHERE id = ?", (mention.id,)
-                ).fetchone()
+    # Open SQLite connection and execute upserts in a single rapid transaction
+    if processed_items:
+        with db_conn() as conn:
+            for item in processed_items:
+                mention = item["mention"]
+                vector = item["vector"]
+                sent = item["sent"]
+                summary = item["summary"]
+                enriched = item["enriched"]
+                topics = item["topics"]
 
-                if existing:
-                    conn.execute("""
-                        UPDATE mentions SET title=?, text=?, source=?, published_at=?,
-                        reach=?, sentiment=?, sentiment_score=?, topics=?, summary=?, web3_signals=?
-                        WHERE id=?
-                    """, (
-                        mention.title, mention.text, mention.source, mention.published_at,
-                        mention.reach, sent["label"], sent["score"],
-                        json.dumps(topics), summary, json.dumps(enriched), mention.id
-                    ))
-                    updated += 1
-                else:
-                    conn.execute("""
-                        INSERT INTO mentions (id, title, text, source, published_at, reach,
-                        sentiment, sentiment_score, topics, summary, web3_signals)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?)
-                    """, (
-                        mention.id, mention.title, mention.text, mention.source,
-                        mention.published_at, mention.reach, sent["label"], sent["score"],
-                        json.dumps(topics), summary, json.dumps(enriched)
-                    ))
-                    inserted += 1
+                try:
+                    # Idempotent upsert to SQLite
+                    existing = conn.execute(
+                        "SELECT id FROM mentions WHERE id = ?", (mention.id,)
+                    ).fetchone()
 
-                # Upsert into FAISS
-                store.upsert(mention.id, vectors[i], {
-                    "id": mention.id,
-                    "title": mention.title,
-                    "source": mention.source,
-                    "published_at": mention.published_at,
-                    "reach": mention.reach,
-                    "sentiment": sent["label"],
-                    "topics": topics,
-                    "summary": summary
-                })
+                    if existing:
+                        conn.execute("""
+                            UPDATE mentions SET title=?, text=?, source=?, published_at=?,
+                            reach=?, sentiment=?, sentiment_score=?, topics=?, summary=?, web3_signals=?
+                            WHERE id=?
+                        """, (
+                            mention.title, mention.text, mention.source, mention.published_at,
+                            mention.reach, sent["label"], sent["score"],
+                            json.dumps(topics), summary, json.dumps(enriched), mention.id
+                        ))
+                        updated += 1
+                    else:
+                        conn.execute("""
+                            INSERT INTO mentions (id, title, text, source, published_at, reach,
+                            sentiment, sentiment_score, topics, summary, web3_signals)
+                            VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                        """, (
+                            mention.id, mention.title, mention.text, mention.source,
+                            mention.published_at, mention.reach, sent["label"], sent["score"],
+                            json.dumps(topics), summary, json.dumps(enriched)
+                        ))
+                        inserted += 1
 
-            except Exception as e:
-                errors.append({"id": mention.id, "error": str(e)})
+                    # Upsert into FAISS
+                    store.upsert(mention.id, vector, {
+                        "id": mention.id,
+                        "title": mention.title,
+                        "source": mention.source,
+                        "published_at": mention.published_at,
+                        "reach": mention.reach,
+                        "sentiment": sent["label"],
+                        "topics": topics,
+                        "summary": summary
+                    })
+                except Exception as e:
+                    errors.append({"id": mention.id, "error": str(e)})
 
-    store.save()
+        # Save FAISS store once outside the transaction block
+        try:
+            store.save()
+        except Exception as e:
+            errors.append({"id": "faiss_save", "error": f"Failed to save FAISS store: {str(e)}"})
+
     import gc
     gc.collect()
     return {"inserted": inserted, "updated": updated, "errors": errors}

@@ -58,3 +58,56 @@ def test_search_p95_latency(client, sample_mention):
     latencies.sort()
     p95 = latencies[int(len(latencies) * 0.95)]
     assert p95 < 0.300, f"p95 latency {p95*1000:.0f}ms exceeds 300ms"
+
+
+def test_search_vector_updates_on_upsert(client):
+    """Verify that when a document is updated with new text, its FAISS vector is updated too."""
+    doc_id = "test-update-vec"
+    
+    # 1. Ingest document with first text
+    doc_1 = {
+        "id": doc_id,
+        "title": "Red Fruits",
+        "text": "Apples are delicious red round fruits that grow on apple trees.",
+        "source": "FruitNews",
+        "published_at": "2025-01-01",
+        "reach": 1000
+    }
+    r1 = client.post("/ingest", json={"mentions": [doc_1]})
+    assert r1.status_code == 200
+    
+    # Search for "apples" and verify we get high score
+    s1 = client.get("/search?query=apples&k=5")
+    assert s1.status_code == 200
+    res_1 = s1.json()["results"]
+    assert len(res_1) > 0
+    assert res_1[0]["id"] == doc_id
+    score_for_apples_init = res_1[0]["score"]
+    
+    # 2. Ingest document with updated text (now about bananas)
+    doc_2 = {
+        "id": doc_id,
+        "title": "Yellow Fruits",
+        "text": "Bananas are sweet yellow long tropical fruits that grow in bunches.",
+        "source": "FruitNews",
+        "published_at": "2025-01-01",
+        "reach": 1000
+    }
+    r2 = client.post("/ingest", json={"mentions": [doc_2]})
+    assert r2.status_code == 200
+    
+    # Search for "bananas" and verify we get the document
+    s2 = client.get("/search?query=bananas&k=5")
+    assert s2.status_code == 200
+    res_2 = s2.json()["results"]
+    assert len(res_2) > 0
+    assert res_2[0]["id"] == doc_id
+    
+    # Search for "apples" again. The score should be lower now that the document describes bananas.
+    s3 = client.get("/search?query=apples&k=5")
+    assert s3.status_code == 200
+    res_3 = s3.json()["results"]
+    
+    # If the document is found, its score for "apples" should be lower than initial
+    if res_3 and res_3[0]["id"] == doc_id:
+        assert res_3[0]["score"] < score_for_apples_init
