@@ -20,6 +20,14 @@ def get_sentiment_pipeline():
     gc.collect()
     return pipe
 
+def unload_sentiment_pipeline():
+    import os
+    if os.environ.get("TESTING") == "True":
+        return
+    get_sentiment_pipeline.cache_clear()
+    import gc
+    gc.collect()
+
 def analyze(text: str) -> dict:
     pipe = get_sentiment_pipeline()
     res = pipe(text[:512])[0]

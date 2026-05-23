@@ -21,6 +21,16 @@ class Embedder:
             gc.collect()
         return cls._instance
 
+    @classmethod
+    def unload(cls):
+        import os
+        if os.environ.get("TESTING") == "True":
+            return
+        if cls._instance is not None:
+            cls._instance = None
+            import gc
+            gc.collect()
+
     def embed(self, texts: list) -> np.ndarray:
         model = self.get()
         return model.encode(texts, batch_size=64, show_progress_bar=False, normalize_embeddings=True)
