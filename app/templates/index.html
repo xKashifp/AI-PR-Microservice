@@ -567,9 +567,13 @@
                         <div class="form-group" style="margin-bottom: 16px;">
                             <label class="form-label" style="font-size:11px;">Slack Webhook URL (Manual)</label>
                             <input type="text" class="input" id="slack-webhook" placeholder="https://hooks.slack.com/services/..." style="font-size:12px;padding:8px 10px;margin-bottom:8px;width:100%;">
-                            <div style="display:flex;gap:8px;">
+                            <div style="display:flex;gap:8px;margin-bottom:12px;">
                                 <button class="btn btn-primary btn-sm" onclick="subscribeSlack()" id="subscribe-btn" style="flex:1;padding:8px 0;">Subscribe</button>
-                                <button class="btn btn-secondary btn-sm" onclick="unsubscribeSlackBtn()" id="unsubscribe-btn" style="flex:1;padding:8px 0;">Unsubscribe</button>
+                            </div>
+                            
+                            <div id="manual-connections-container" style="display:none; font-size:12px;">
+                                <label class="form-label" style="font-size:10px; margin-bottom:4px; color:var(--text-muted);">Active Subscriptions</label>
+                                <div id="manual-connections-list" style="display:flex; flex-direction:column; gap:4px; padding:6px; background:rgba(0,0,0,0.2); border-radius:6px; max-height:100px; overflow-y:auto;"></div>
                             </div>
                         </div>
 
@@ -939,6 +943,7 @@
                 toast('Slack workspace already subscribed', 'info');
             }
             urlInput.value = '';
+            fetchManualSubscribers();
         } catch(e) {
             toast('Subscription failed: ' + e.message, 'error');
         } finally {
@@ -946,35 +951,43 @@
         }
     }
 
-    async function unsubscribeSlack(url) {
+    async function fetchManualSubscribers() {
         try {
-            const r = await fetch(`${API}/slack/unsubscribe`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ webhook_url: url })
-            });
-            if (r.ok) {
-                toast('Unsubscribed Slack workspace', 'success');
-                document.getElementById('slack-webhook').value = '';
+            const r = await fetch(`${API}/slack/subscribers`);
+            const data = await r.json();
+            const container = document.getElementById('manual-connections-container');
+            const list = document.getElementById('manual-connections-list');
+            if (data && data.length > 0) {
+                container.style.display = 'block';
+                list.innerHTML = data.map(sub => `
+                    <div style="display:flex; justify-content:space-between; align-items:center; padding: 4px; border-bottom:1px solid rgba(255,255,255,0.03); gap: 8px;">
+                        <span style="color:var(--text-muted); text-overflow:ellipsis; overflow:hidden; white-space:nowrap; max-width:200px;" title="${escHtml(sub.webhook_url)}">
+                            Webhook (<strong>${escHtml(sub.webhook_url.slice(-15))}</strong>)
+                        </span>
+                        <button onclick="disconnectManual(${sub.id})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:10px; padding:0 4px; flex-shrink:0;">Remove</button>
+                    </div>
+                `).join('');
             } else {
-                const data = await r.json();
-                throw new Error(data.detail);
+                container.style.display = 'none';
             }
         } catch(e) {
-            toast('Failed to unsubscribe: ' + e.message, 'error');
+            console.error('Failed to fetch manual subscribers:', e);
         }
     }
 
-    function unsubscribeSlackBtn() {
-        const urlInput = document.getElementById('slack-webhook');
-        const url = urlInput.value.trim();
-        if (!url) { toast('Enter webhook URL to unsubscribe', 'error'); return; }
-        if (!url.startsWith('https://hooks.slack.com/services/')) {
-            toast('Invalid webhook URL format', 'error');
-            return;
-        }
-        if (confirm('Unsubscribe this Slack workspace?')) {
-            unsubscribeSlack(url);
+    async function disconnectManual(id) {
+        if (!confirm('Remove this Slack manual webhook?')) return;
+        try {
+            const r = await fetch(`${API}/slack/unsubscribe/${id}`, { method: 'POST' });
+            if (r.ok) {
+                toast('Removed Slack manual webhook', 'success');
+                fetchManualSubscribers();
+            } else {
+                const data = await r.json();
+                throw new Error(data.detail || 'Remove failed');
+            }
+        } catch(e) {
+            toast('Failed to remove: ' + e.message, 'error');
         }
     }
 
@@ -1038,6 +1051,7 @@
     // Init
     refreshHealth();
     fetchOAuthInstallations();
+    fetchManualSubscribers();
     setInterval(refreshHealth, 30000);
 </script>
 </body>

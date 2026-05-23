@@ -28,23 +28,29 @@ async def process_and_ingest_mentions(mentions_data: list[MentionIn]) -> dict:
     inserted, updated, errors = 0, 0, []
     texts = [f"{m.title}. {m.text}" for m in mentions_data]
 
-    # Chunk embedding generation to keep memory flat
+    # 1. Chunk embedding generation and immediately unload embedder to save memory
     vectors = []
     chunk_size = 10
     for idx in range(0, len(texts), chunk_size):
         chunk = texts[idx:idx + chunk_size]
         vectors.extend(embedder.embed(chunk))
+    Embedder.unload()
 
-    # Batch classify topics
+    # 2. Batch classify topics (uses scikit-learn/TF-IDF, which is extremely lightweight)
     topic_preds = classify_topics(texts)
 
-    # Pre-process all NLP, Web3 and summary data outside of DB transaction to avoid locking SQLite
+    # 3. Perform sentiment analysis sequentially and immediately unload pipeline
+    sentiments = []
+    for mention in mentions_data:
+        sentiments.append(analyze_sentiment(mention.text))
+    from app.nlp.sentiment import unload_sentiment_pipeline
+    unload_sentiment_pipeline()
+
+    # 4. Generate summaries and Web3 signals, and assemble items
     processed_items = []
     for i, mention in enumerate(mentions_data):
         try:
-            # Sentiment analysis
-            sent = analyze_sentiment(mention.text)
-
+            sent = sentiments[i]
             # Summarization (async, with fallback)
             summary = await summarize(mention.text)
 

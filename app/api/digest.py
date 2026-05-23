@@ -36,6 +36,29 @@ async def unsubscribe_slack(req: SlackSubscribeRequest):
         else:
             return {"status": "not_found", "webhook_url": url}
 
+@router.get("/slack/subscribers", tags=["Slack Integration"])
+async def list_subscribers():
+    with db_conn() as conn:
+        rows = conn.execute("SELECT id, webhook_url, created_at FROM slack_subscribers").fetchall()
+        # Obfuscate webhook URLs for security
+        return [
+            {
+                "id": r["id"],
+                "webhook_url": r["webhook_url"][:45] + "..." if len(r["webhook_url"]) > 45 else r["webhook_url"],
+                "created_at": r["created_at"]
+            }
+            for r in rows
+        ]
+
+@router.post("/slack/unsubscribe/{sub_id}", tags=["Slack Integration"])
+async def unsubscribe_slack_by_id(sub_id: int):
+    with db_conn() as conn:
+        res = conn.execute("DELETE FROM slack_subscribers WHERE id = ?", (sub_id,))
+        if res.rowcount > 0:
+            return {"status": "unsubscribed"}
+        else:
+            raise HTTPException(status_code=404, detail="Subscriber not found")
+
 @router.get("/slack/install", tags=["Slack OAuth"])
 async def slack_install():
     if not settings.SLACK_CLIENT_ID or not settings.SLACK_REDIRECT_URI:

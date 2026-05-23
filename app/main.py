@@ -44,17 +44,6 @@ async def lifespan(app: FastAPI):
     logger.info("Loading FAISS index")
     get_store()
     
-    logger.info("Pre-loading NLP models to prevent runtime OOM")
-    try:
-        from app.nlp.embedder import Embedder
-        from app.nlp.sentiment import get_sentiment_pipeline
-        # Force loading of models into memory
-        Embedder.get()
-        get_sentiment_pipeline()
-        logger.info("NLP models preloaded successfully")
-    except Exception as e:
-        logger.error(f"Failed to preload models: {e}")
-        
     if os.environ.get("TESTING") != "True":
         logger.info("Starting scheduler")
         start_scheduler()
