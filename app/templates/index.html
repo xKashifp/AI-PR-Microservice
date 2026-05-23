@@ -495,6 +495,8 @@
                                 <span class="btn-text">📥 Ingest Mentions</span>
                             </button>
                             <button class="btn btn-secondary btn-sm" onclick="loadDemoData()" title="Load 20 demo mentions">Demo Data</button>
+                            <button class="btn btn-secondary btn-sm" onclick="loadTemplate()" title="Load blank template for manual ingest">Template</button>
+                            <button class="btn btn-secondary btn-sm" onclick="loadFreshRSS()" id="rss-btn" title="Fetch fresh RSS mentions from web">Fetch RSS</button>
                         </div>
                         <div id="ingest-result" style="display:none;">
                             <label class="form-label">Result</label>
@@ -560,17 +562,13 @@
                             Sends top Web3 PR mentions ranked by reach × recency to Slack. Runs automatically at 08:00 UTC.
                         </p>
                         
-                        <div class="form-group" style="margin-bottom: 12px;">
-                            <label class="form-label" style="font-size:11px;">Add Slack Webhook</label>
+                        <div class="form-group" style="margin-bottom: 16px;">
+                            <label class="form-label" style="font-size:11px;">Slack Webhook URL</label>
+                            <input type="text" class="input" id="slack-webhook" placeholder="https://hooks.slack.com/services/..." style="font-size:12px;padding:8px 10px;margin-bottom:8px;width:100%;">
                             <div style="display:flex;gap:8px;">
-                                <input type="text" class="input" id="slack-webhook" placeholder="https://hooks.slack.com/services/..." style="font-size:12px;padding:8px 10px;">
-                                <button class="btn btn-primary btn-sm" onclick="subscribeSlack()" id="subscribe-btn" style="padding: 8px 14px;">Subscribe</button>
+                                <button class="btn btn-primary btn-sm" onclick="subscribeSlack()" id="subscribe-btn" style="flex:1;padding:8px 0;">Subscribe</button>
+                                <button class="btn btn-secondary btn-sm" onclick="unsubscribeSlackBtn()" id="unsubscribe-btn" style="flex:1;padding:8px 0;">Unsubscribe</button>
                             </div>
-                        </div>
-
-                        <div id="subscribers-list-container" style="margin-bottom:16px; font-size:12px; display:none;">
-                            <label class="form-label" style="font-size:11px; margin-bottom:4px;">Active Workspaces</label>
-                            <div id="subscribers-list" style="max-height:80px; overflow-y:auto; display:flex; flex-direction:column; gap:4px; padding:4px; background:rgba(0,0,0,0.2); border-radius:6px;"></div>
                         </div>
 
                         <button class="btn btn-secondary btn-full" onclick="runDigest()" id="digest-btn2">
@@ -795,6 +793,42 @@
         toast('20 demo mentions loaded. Click Ingest to process.', 'info');
     }
 
+    function loadTemplate() {
+        const template = [
+            {
+                id: `mention-${Date.now()}`,
+                title: "Enter Title",
+                text: "Enter text content here...",
+                source: "Manual",
+                published_at: new Date().toISOString().split('T')[0],
+                reach: 0
+            }
+        ];
+        document.getElementById('ingest-payload').value = JSON.stringify(template, null, 2);
+        toast('Blank template loaded. Edit values and click Ingest.', 'info');
+    }
+
+    async function loadFreshRSS() {
+        const btn = document.getElementById('rss-btn');
+        btn.classList.add('loading'); btn.disabled = true;
+        try {
+            const r = await fetch(`${API}/feeds/fetch`);
+            const data = await r.json();
+            if (!r.ok) throw new Error(data.detail || 'Fetch failed');
+            
+            if (data.mentions && data.mentions.length > 0) {
+                document.getElementById('ingest-payload').value = JSON.stringify(data.mentions, null, 2);
+                toast(`Loaded ${data.mentions.length} fresh mentions from feeds. Click Ingest to process.`, 'success');
+            } else {
+                toast('No fresh mentions found in feeds.', 'info');
+            }
+        } catch(e) {
+            toast('Failed to fetch feeds: ' + e.message, 'error');
+        } finally {
+            btn.classList.remove('loading'); btn.disabled = false;
+        }
+    }
+
     // Web3 detection (client-side regex preview)
     function detectWeb3() {
         const text = document.getElementById('web3-text').value;
@@ -865,31 +899,6 @@
     }
 
     // Slack subscribers management
-    async function fetchSubscribers() {
-        try {
-            const r = await fetch(`${API}/slack/subscribers`);
-            const data = await r.json();
-            const container = document.getElementById('subscribers-list-container');
-            const list = document.getElementById('subscribers-list');
-            
-            if (data.length > 0) {
-                container.style.display = 'block';
-                list.innerHTML = data.map(sub => {
-                    const cleanUrl = sub.webhook_url.replace(/https:\/\/hooks\.slack\.com\/services\/[^\/]+\/[^\/]+\//, 'hooks.slack.com/.../');
-                    return `
-                    <div style="display:flex; justify-content:space-between; align-items:center; padding: 2px 4px; border-bottom:1px solid rgba(255,255,255,0.05);">
-                        <span title="${escHtml(sub.webhook_url)}" style="color:var(--text-muted); text-overflow:ellipsis; overflow:hidden; white-space:nowrap; max-width:200px;">${escHtml(cleanUrl)}</span>
-                        <button onclick="unsubscribeSlack('${escHtml(sub.webhook_url)}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:10px; padding:0 4px;">✕</button>
-                    </div>`;
-                }).join('');
-            } else {
-                container.style.display = 'none';
-            }
-        } catch(e) {
-            console.error('Failed to fetch subscribers:', e);
-        }
-    }
-
     async function subscribeSlack() {
         const urlInput = document.getElementById('slack-webhook');
         const url = urlInput.value.trim();
@@ -917,7 +926,6 @@
                 toast('Slack workspace already subscribed', 'info');
             }
             urlInput.value = '';
-            fetchSubscribers();
         } catch(e) {
             toast('Subscription failed: ' + e.message, 'error');
         } finally {
@@ -926,7 +934,6 @@
     }
 
     async function unsubscribeSlack(url) {
-        if (!confirm('Unsubscribe this Slack workspace?')) return;
         try {
             const r = await fetch(`${API}/slack/unsubscribe`, {
                 method: 'POST',
@@ -935,13 +942,26 @@
             });
             if (r.ok) {
                 toast('Unsubscribed Slack workspace', 'success');
-                fetchSubscribers();
+                document.getElementById('slack-webhook').value = '';
             } else {
                 const data = await r.json();
                 throw new Error(data.detail);
             }
         } catch(e) {
             toast('Failed to unsubscribe: ' + e.message, 'error');
+        }
+    }
+
+    function unsubscribeSlackBtn() {
+        const urlInput = document.getElementById('slack-webhook');
+        const url = urlInput.value.trim();
+        if (!url) { toast('Enter webhook URL to unsubscribe', 'error'); return; }
+        if (!url.startsWith('https://hooks.slack.com/services/')) {
+            toast('Invalid webhook URL format', 'error');
+            return;
+        }
+        if (confirm('Unsubscribe this Slack workspace?')) {
+            unsubscribeSlack(url);
         }
     }
 
@@ -952,7 +972,6 @@
 
     // Init
     refreshHealth();
-    fetchSubscribers();
     setInterval(refreshHealth, 30000);
 </script>
 </body>

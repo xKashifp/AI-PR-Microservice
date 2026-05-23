@@ -33,9 +33,3 @@ async def unsubscribe_slack(req: SlackSubscribeRequest):
             return {"status": "unsubscribed", "webhook_url": url}
         else:
             return {"status": "not_found", "webhook_url": url}
-
-@router.get("/slack/subscribers", tags=["Slack Integration"])
-async def get_subscribers():
-    with db_conn() as conn:
-        rows = conn.execute("SELECT webhook_url, created_at FROM slack_subscribers").fetchall()
-        return [{"webhook_url": r["webhook_url"], "created_at": r["created_at"]} for r in rows]

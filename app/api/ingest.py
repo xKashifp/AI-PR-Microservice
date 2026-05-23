@@ -191,3 +191,13 @@ async def ingest(raw_request: Request):
 
     res = await process_and_ingest_mentions(mentions_data)
     return IngestResponse(**res)
+
+
+@router.get("/feeds/fetch", tags=["Ingestion"])
+async def fetch_fresh_feeds():
+    from app.jobs.scheduler import fetch_and_parse_rss
+    try:
+        mentions = await fetch_and_parse_rss()
+        return {"mentions": [m.model_dump() for m in mentions]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch RSS feeds: {str(e)}")
